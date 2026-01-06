@@ -6,14 +6,18 @@ import { NavigationContainer } from '@react-navigation/native'
 import ProductContainer from './Screens/Product/ProductContainer'
 import HomeNavigator from './Navigators/HomeNavigator';
 import Header from './Shared/Header';
+import Main from './Navigators/Main';
+import { Provider as PaperProvider } from 'react-native-paper';
 export default function App() {
   return (
     <NavigationContainer>
-      <View style={styles.container}>
+      <PaperProvider>
+        {/* <View style={styles.container}> */}
         <Header />
-        <ProductContainer />
-        {/* <HomeNavigator /> */}
-      </View>
+        {/* <ProductContainer /> */}
+        <Main />
+        {/* </View> */}
+      </PaperProvider>
     </NavigationContainer>
   );
 }

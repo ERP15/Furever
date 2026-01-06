@@ -3,6 +3,7 @@ import { Image, View, StyleSheet, Text, ScrollView, Button } from "react-native"
 import { Surface, } from "react-native-paper";
 
 const SingleProduct = ({ route }) => {
+    console.log(route)
     const [item, setItem] = useState(route.params.item);
 
 

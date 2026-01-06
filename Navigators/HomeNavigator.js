@@ -1,6 +1,6 @@
 import React from 'react'
 import { createStackNavigator } from "@react-navigation/stack"
-
+// import { Stack } from 'expo-router';
 import ProductContainer from '../Screens/Product/ProductContainer';
 import SingleProduct from '../Screens/Product/SingleProduct';
 
