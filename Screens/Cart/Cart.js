@@ -9,6 +9,7 @@ import { SwipeListView } from 'react-native-swipe-list-view';
 import { removeFromCart, clearCart } from '../../Redux/Actions/cartActions'
 import { Surface, Divider, Avatar, Button } from 'react-native-paper';
 var { height, width } = Dimensions.get("window");
+import { Ionicons } from "@expo/vector-icons";
 
 const Cart = () => {
     const navigation = useNavigation()
@@ -48,7 +49,7 @@ const Cart = () => {
         >
             <Surface alignItems="center" style={styles.hiddenButton} >
                 <View >
-                    <Icon name="trash" color={"white"} size={30} bg="red" />
+                    <Ionicons name="trash" color={"white"} size={30} bg="red" />
                     <Text color="white" fontSize="xs" fontWeight="medium">
                         Delete
                     </Text>
