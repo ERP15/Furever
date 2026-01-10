@@ -9,9 +9,13 @@ import {
 } from 'react-native'
 
 var { width, height } = Dimensions.get("window");
+import { addToCart } from '../../Redux/Actions/cartActions'
+import { useDispatch } from 'react-redux'
+import Toast from 'react-native-toast-message'
 
 const ProductCard = (props) => {
     const { name, price, image, countInStock } = props;
+    const dispatch = useDispatch()
 
     return (
         <View style={styles.container}>
@@ -33,7 +37,17 @@ const ProductCard = (props) => {
 
             {countInStock > 0 ? (
                 <View style={{ marginBottom: 60 }}>
-                    <Button title={'Add'} color={'green'}> </Button>
+                    <Button title={'Add'} color={'green'}
+                        onPress={() => {
+                            dispatch(addToCart({ ...props, quantity: 1, })),
+                                Toast.show({
+                                    topOffset: 60,
+                                    type: "success",
+                                    text1: `${name} added to Cart`,
+                                    text2: "Go to your cart to complete order"
+                                })
+                        }}
+                    />
                 </View>
             ) : <Text style={{ marginTop: 20 }}>Currently Unavailable</Text>}
         </View>
