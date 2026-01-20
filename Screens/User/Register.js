@@ -55,6 +55,7 @@ const Register = (props) => {
     };
 
     const register = () => {
+        console.log(`${baseURL}users/register`)
         if (email === "" || name === "" || phone === "" || password === "") {
             setError("Please fill in the form correctly");
         }
@@ -95,6 +96,7 @@ const Register = (props) => {
                 }
             })
             .catch((error) => {
+                // console.log(`${baseURL}users/register`)
                 Toast.show({
                     position: 'bottom',
                     bottomOffset: 20,
@@ -102,14 +104,14 @@ const Register = (props) => {
                     text1: "Something went wrong",
                     text2: "Please try again",
                 });
-                console.log(error.message)
+                console.log(error)
             })
     }
 
     const getLocation = () => {
         // ?z=15&q='restaurants
         const { coords } = location
-        const url = `geo:${coords.latitude},${coords.longtitude}?z=5`;
+        const url = `geo:${coords.latitude},${coords.longtitude}?z=15`;
         Linking.openURL(url);
     }
 
@@ -122,7 +124,7 @@ const Register = (props) => {
             quality: 1,
         });
 
-        console.log(result);
+        // console.log(result);
 
         if (!result.canceled) {
             setImage(result.assets[0].uri);
@@ -147,7 +149,7 @@ const Register = (props) => {
             setLocation(location);
         })();
     }, []);
-    console.log(location)
+    // console.log(location)
     return (
         <KeyboardAwareScrollView
             viewIsInsideTabBar={true}
@@ -201,7 +203,7 @@ const Register = (props) => {
                         style={{ color: "blue" }}
                     />
                 </View>
-                <View>
+                {/* <View>
                     <Button
                         title="Back to Login"
                         style={{ color: "blue" }}
@@ -214,7 +216,7 @@ const Register = (props) => {
                     />
 
 
-                </View>
+                </View> */}
             </FormContainer>
         </KeyboardAwareScrollView>
     );

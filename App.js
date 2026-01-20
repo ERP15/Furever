@@ -11,21 +11,22 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import { Provider } from 'react-redux';
 import store from './Redux/store';
 import Toast from 'react-native-toast-message';
+import Auth from './Context/Store/Auth';
 export default function App() {
   return (
-    <Provider store={store}>
-      <NavigationContainer>
-        <PaperProvider>
-          {/* <View style={styles.container}> */}
-          <Header />
-          {/* <ProductContainer /> */}
-          <Main />
+    <Auth>
+      <Provider store={store}>
+        <NavigationContainer>
+          <PaperProvider>
+            <Header />
+            {/* <ProductContainer /> */}
+            <Main />
+          </PaperProvider>
+        </NavigationContainer>
+        <Toast />
+      </Provider>
+    </Auth>
 
-          {/* </View> */}
-        </PaperProvider>
-      </NavigationContainer>
-      <Toast />
-    </Provider>
   );
 }
 
