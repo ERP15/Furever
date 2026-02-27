@@ -5,15 +5,16 @@ import {
     Image,
     StyleSheet,
     TouchableOpacity,
-    Platform
+    Platform,
+    ScrollView
 } from "react-native"
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view"
 import { Surface } from "react-native-paper"
 import { Picker } from "@react-native-picker/picker"
 
 import FormContainer from "../../Shared/FormContainer"
 import Input from "../../Shared/Input"
 import EasyButton from "../../Shared/StyledComponents/EasyButton"
-
 
 import Toast from "react-native-toast-message"
 import AsyncStorage from '@react-native-async-storage/async-storage'
@@ -25,11 +26,13 @@ import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import mime from "mime";
 import { Ionicons } from "@expo/vector-icons";
 
+const PET_TYPES = ['Dog', 'Cat', 'Fish', 'Bird', 'Rabbit', 'Hamster', 'Reptile', 'Other'];
+const PRODUCT_CATEGORIES = [
+    'Pet Food', 'Treats', 'Toys', 'Grooming', 'Health', 'Accessories', 'Habitat'
+];
 
 const ProductForm = (props) => {
-    // console.log(props.route.params)
     const [pickerValue, setPickerValue] = useState('');
-    const [brand, setBrand] = useState('');
     const [name, setName] = useState('');
     const [price, setPrice] = useState(0);
     const [description, setDescription] = useState('');
@@ -40,11 +43,11 @@ const ProductForm = (props) => {
     const [token, setToken] = useState();
     const [error, setError] = useState();
     const [countInStock, setCountInStock] = useState();
-    const [rating, setRating] = useState(0);
-    const [isFeatured, setIsFeatured] = useState(false);
-    const [richDescription, setRichDescription] = useState();
-    const [numReviews, setNumReviews] = useState(0);
     const [item, setItem] = useState(null);
+    const [petType, setPetType] = useState('');
+    const [expirationDate, setExpirationDate] = useState('');
+    const [sizeVariants, setSizeVariants] = useState('');
+    const [lowStockThreshold, setLowStockThreshold] = useState('10');
 
     let navigation = useNavigation()
 
@@ -52,16 +55,20 @@ const ProductForm = (props) => {
         if (!props.route.params) {
             setItem(null);
         } else {
-            setItem(props.route.params.item);
-            setBrand(props.route.params.item.brand);
-            setName(props.route.params.item.name);
-            setPrice(props.route.params.item.price.toString());
-            setDescription(props.route.params.item.description);
-            setMainImage(props.route.params.item.image);
-            setImage(props.route.params.item.image);
-            setCategory(props.route.params.item.category._id);
-            setPickerValue(props.route.params.item.category._id);
-            setCountInStock(props.route.params.item.countInStock.toString());
+            const editItem = props.route.params.item;
+            setItem(editItem);
+            setName(editItem.name || '');
+            setPrice(editItem.price?.toString() || '');
+            setDescription(editItem.description || '');
+            setMainImage(editItem.image);
+            setImage(editItem.image || '');
+            setCategory(editItem.category?._id || editItem.category || '');
+            setPickerValue(editItem.category?._id || editItem.category || '');
+            setCountInStock(editItem.countInStock?.toString() || '');
+            setLowStockThreshold(editItem.lowStockThreshold?.toString() || '10');
+            setPetType(editItem.petType || '');
+            setExpirationDate(editItem.expirationDate || '');
+            setSizeVariants(editItem.variants ? editItem.variants.join(', ') : '');
         }
         AsyncStorage.getItem("jwt")
             .then((res) => {
@@ -87,6 +94,33 @@ const ProductForm = (props) => {
         }
     }, [])
 
+    const takePhoto = async () => {
+        try {
+            let result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 1,
+            });
+
+            if (!result.canceled) {
+                setMainImage(result.assets[0].uri);
+                setImage(result.assets[0].uri);
+                Toast.show({
+                    topOffset: 60,
+                    type: 'success',
+                    text1: 'Photo captured successfully',
+                });
+            }
+        } catch (error) {
+            Toast.show({
+                topOffset: 60,
+                type: 'error',
+                text1: 'Error capturing photo',
+                text2: error.message,
+            });
+        }
+    };
+
     const pickImage = async () => {
         let result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images',],
@@ -96,43 +130,45 @@ const ProductForm = (props) => {
         });
 
         if (!result.canceled) {
-            console.log(result.assets)
             setMainImage(result.assets[0].uri);
             setImage(result.assets[0].uri);
         }
     }
 
-
     const addProduct = () => {
         if (
             name === "" ||
-            brand === "" ||
             price === "" ||
             description === "" ||
             category === "" ||
             countInStock === ""
         ) {
-            setError("Please fill in the form correctly")
+            setError("Please fill in all required fields")
+            return;
         }
 
         let formData = new FormData();
         const newImageUri = "file:///" + image.split("file:/").join("");
 
         formData.append("name", name);
-        formData.append("brand", brand);
         formData.append("price", price);
         formData.append("description", description);
         formData.append("category", category);
         formData.append("countInStock", countInStock);
-        formData.append("richDescription", richDescription);
-        formData.append("rating", rating);
-        formData.append("numReviews", numReviews);
-        formData.append("isFeatured", isFeatured);
-        formData.append("image", {
-            uri: newImageUri,
-            type: mime.getType(newImageUri),
-            name: newImageUri.split("/").pop()
-        });
+        formData.append("lowStockThreshold", lowStockThreshold || '10');
+        formData.append("petType", petType);
+        formData.append("expirationDate", expirationDate);
+        if (sizeVariants) {
+            formData.append("variants", JSON.stringify(sizeVariants.split(',').map(v => v.trim())));
+        }
+
+        if (image && !image.startsWith('http')) {
+            formData.append("image", {
+                uri: newImageUri,
+                type: mime.getType(newImageUri),
+                name: newImageUri.split("/").pop()
+            });
+        }
 
         const config = {
             headers: {
@@ -141,16 +177,14 @@ const ProductForm = (props) => {
             }
         }
         if (item !== null) {
-            console.log(item)
             axios
-                .put(`${baseURL}products/${item.id}`, formData, config)
+                .put(`${baseURL}products/${item._id || item.id}`, formData, config)
                 .then((res) => {
-
                     if (res.status === 200 || res.status === 201) {
                         Toast.show({
                             topOffset: 60,
                             type: "success",
-                            text1: "Product successfuly updated",
+                            text1: "Product successfully updated",
                             text2: ""
                         });
                         setTimeout(() => {
@@ -191,43 +225,53 @@ const ProductForm = (props) => {
                         text2: "Please try again"
                     })
                 })
-
         }
-
     }
-    console.log(categories)
+
     return (
-        <FormContainer title="Add Product">
+        <KeyboardAwareScrollView
+            viewIsInsideTabBar={true}
+            extraHeight={200}
+            enableOnAndroid={true}
+            contentContainerStyle={{ paddingBottom: 40 }}
+        >
+        <FormContainer title={item ? "Edit Product" : "Add Product"}>
             <View style={styles.imageContainer}>
-                <Image style={styles.image} source={{ uri: mainImage }} />
-                <TouchableOpacity
-                    onPress={pickImage}
-                    style={styles.imagePicker}>
-                    <Ionicons style={{ color: "white" }} name="camera" />
-                </TouchableOpacity>
+                {mainImage ? (
+                    <Image style={styles.image} source={{ uri: mainImage }} />
+                ) : (
+                    <View style={[styles.image, styles.placeholder]} />
+                )}
+                <View style={styles.imagePickerButtons}>
+                    <TouchableOpacity
+                        onPress={takePhoto}
+                        style={[styles.imagePicker, styles.cameraButton]}
+                        title="Capture Photo">
+                        <Ionicons style={{ color: "white" }} name="camera" size={20} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        onPress={pickImage}
+                        style={[styles.imagePicker, styles.uploadButton]}
+                        title="Upload Photo">
+                        <Ionicons style={{ color: "white" }} name="image" size={20} />
+                    </TouchableOpacity>
+                </View>
             </View>
+
+            {/* Basic Info */}
+            <Text style={styles.sectionHeader}>Basic Information</Text>
             <View style={styles.label}>
-                <Text style={{ textDecorationLine: "underline" }}>Brand</Text>
+                <Text style={styles.labelText}>Product Name *</Text>
             </View>
             <Input
-                placeholder="Brand"
-                name="brand"
-                id="brand"
-                value={brand}
-                onChangeText={(text) => setBrand(text)}
-            />
-            <View style={styles.label}>
-                <Text style={{ textDecorationLine: "underline" }}>Name</Text>
-            </View>
-            <Input
-                placeholder="Name"
+                placeholder="Product Name"
                 name="name"
                 id="name"
                 value={name}
                 onChangeText={(text) => setName(text)}
             />
             <View style={styles.label}>
-                <Text style={{ textDecorationLine: "underline" }}>Price</Text>
+                <Text style={styles.labelText}>Price *</Text>
             </View>
             <Input
                 placeholder="Price"
@@ -238,10 +282,10 @@ const ProductForm = (props) => {
                 onChangeText={(text) => setPrice(text)}
             />
             <View style={styles.label}>
-                <Text style={{ textDecorationLine: "underline" }}>Count in Stock</Text>
+                <Text style={styles.labelText}>Stock *</Text>
             </View>
             <Input
-                placeholder="Stock"
+                placeholder="Count in Stock"
                 name="stock"
                 id="stock"
                 value={countInStock}
@@ -249,24 +293,32 @@ const ProductForm = (props) => {
                 onChangeText={(text) => setCountInStock(text)}
             />
             <View style={styles.label}>
-                <Text style={{ textDecorationLine: "underline" }}>Description</Text>
+                <Text style={styles.labelText}>Low Stock Alert Threshold</Text>
+                <Text style={styles.helperText}>
+                    Alert when stock falls below this number (default: 10)
+                </Text>
             </View>
             <Input
-                placeholder="Description"
-                name="description"
-                id="description"
-                value={description}
-                onChangeText={(text) => setDescription(text)}
+                placeholder="Low Stock Threshold"
+                name="lowStockThreshold"
+                id="lowStockThreshold"
+                value={lowStockThreshold}
+                keyboardType={"numeric"}
+                onChangeText={(text) => setLowStockThreshold(text)}
             />
-            <View>
+
+            {/* Category & Pet Type */}
+            <Text style={styles.sectionHeader}>Classification</Text>
+            <View style={styles.label}>
+                <Text style={styles.labelText}>Category *</Text>
+            </View>
+            <View style={styles.pickerContainer}>
                 <Picker
-                    label="Categories"
-                    selectionColor="red"
-                    style={{ height: 100, width: 300 }}
-                    minWidth="100%"
-                    placeholder="Select your Category"
+                    selectionColor="#FF8C42"
+                    style={styles.picker}
                     selectedValue={pickerValue}
                     onValueChange={(e) => [setPickerValue(e), setCategory(e)]} >
+                    <Picker.Item label="Select Category" value="" />
                     {categories.map((c, index) => {
                         return (
                             <Picker.Item
@@ -275,19 +327,77 @@ const ProductForm = (props) => {
                                 value={c.id} />
                         )
                     })}
-
                 </Picker>
             </View>
+
+            <View style={styles.label}>
+                <Text style={styles.labelText}>Pet Type</Text>
+            </View>
+            <View style={styles.petTypeGrid}>
+                {PET_TYPES.map((pet) => (
+                    <TouchableOpacity
+                        key={pet}
+                        style={[
+                            styles.petChip,
+                            petType === pet && styles.petChipActive
+                        ]}
+                        onPress={() => setPetType(petType === pet ? '' : pet)}
+                    >
+                        <Text style={[
+                            styles.petChipText,
+                            petType === pet && styles.petChipTextActive
+                        ]}>{pet}</Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            {/* Details */}
+            <Text style={styles.sectionHeader}>Product Details</Text>
+            <View style={styles.label}>
+                <Text style={styles.labelText}>Description *</Text>
+            </View>
+            <Input
+                placeholder="Include ingredients, usage, safety info, size guide..."
+                name="description"
+                id="description"
+                value={description}
+                multiline
+                numberOfLines={4}
+                onChangeText={(text) => setDescription(text)}
+            />
+            <View style={styles.label}>
+                <Text style={styles.labelText}>Size Variants (comma-separated)</Text>
+            </View>
+            <Input
+                placeholder="e.g., Small, Medium, Large"
+                name="sizeVariants"
+                id="sizeVariants"
+                value={sizeVariants}
+                onChangeText={(text) => setSizeVariants(text)}
+            />
+            <View style={styles.label}>
+                <Text style={styles.labelText}>Expiration Date (for food/treats)</Text>
+            </View>
+            <Input
+                placeholder="YYYY-MM-DD"
+                name="expirationDate"
+                id="expirationDate"
+                value={expirationDate}
+                onChangeText={(text) => setExpirationDate(text)}
+            />
             {error ? <Error message={error} /> : null}
             <View style={styles.buttonContainer}>
                 <EasyButton
                     large
                     primary
                     onPress={() => addProduct()}
-                ><Text style={styles.buttonText}>Confirm</Text>
+                ><Text style={styles.buttonText}>
+                    {item ? "Update Product" : "Add Product"}
+                </Text>
                 </EasyButton>
             </View>
         </FormContainer>
+        </KeyboardAwareScrollView>
     )
 }
 
@@ -296,6 +406,28 @@ const styles = StyleSheet.create({
     label: {
         width: "80%",
         marginTop: 10
+    },
+    labelText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#555',
+    },
+    helperText: {
+        fontSize: 12,
+        color: '#888',
+        marginTop: 2,
+        fontStyle: 'italic',
+    },
+    sectionHeader: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#FF8C42',
+        width: '80%',
+        marginTop: 20,
+        marginBottom: 5,
+        paddingBottom: 5,
+        borderBottomWidth: 1,
+        borderBottomColor: '#FFD9B3',
     },
     buttonContainer: {
         width: "80%",
@@ -322,16 +454,69 @@ const styles = StyleSheet.create({
         height: "100%",
         borderRadius: 100
     },
-    imagePicker: {
+    placeholder: {
+        backgroundColor: "#E0E0E0"
+    },
+    imagePickerButtons: {
         position: "absolute",
         right: 5,
         bottom: 5,
+        flexDirection: 'row',
+        gap: 8,
+    },
+    imagePicker: {
         backgroundColor: "grey",
         padding: 8,
-        borderRadius: 100,
-        elevation: 20
-    }
+        borderRadius: 50,
+        elevation: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    cameraButton: {
+        backgroundColor: '#FF8C42',
+    },
+    uploadButton: {
+        backgroundColor: '#20C997',
+    },
+    pickerContainer: {
+        width: '80%',
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 8,
+        marginTop: 5,
+        overflow: 'hidden',
+    },
+    picker: {
+        height: 50,
+        width: '100%',
+    },
+    petTypeGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        width: '80%',
+        gap: 8,
+        marginTop: 8,
+    },
+    petChip: {
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1.5,
+        borderColor: '#ddd',
+        backgroundColor: '#f9f9f9',
+    },
+    petChipActive: {
+        backgroundColor: '#FF8C42',
+        borderColor: '#FF8C42',
+    },
+    petChipText: {
+        fontSize: 13,
+        color: '#666',
+    },
+    petChipTextActive: {
+        color: 'white',
+        fontWeight: '600',
+    },
 })
-
 
 export default ProductForm;

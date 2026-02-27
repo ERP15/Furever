@@ -18,14 +18,23 @@ var { width } = Dimensions.get("window")
 const Item = (props) => {
     return (
         <View style={styles.item}>
-            <Text>{props.item.name}</Text>
-            <EasyButton
-                danger
-                medium
-                onPress={() => props.delete(props.item.id)}
-            >
-                <Text style={{ color: "white", fontWeight: "bold" }}>Delete</Text>
-            </EasyButton>
+            <Text style={{ flex: 1 }}>{props.item.name}</Text>
+            <View style={{ flexDirection: 'row', gap: 5 }}>
+                <EasyButton
+                    primary
+                    medium
+                    onPress={() => props.edit(props.item)}
+                >
+                    <Text style={{ color: "white", fontWeight: "bold" }}>Edit</Text>
+                </EasyButton>
+                <EasyButton
+                    danger
+                    medium
+                    onPress={() => props.delete(props.item.id || props.item._id)}
+                >
+                    <Text style={{ color: "white", fontWeight: "bold" }}>Delete</Text>
+                </EasyButton>
+            </View>
         </View>
     )
 }
@@ -33,8 +42,9 @@ const Item = (props) => {
 const Categories = (props) => {
 
     const [categories, setCategories] = useState([]);
-    const [categoryName, setCategoryName] = useState();
+    const [categoryName, setCategoryName] = useState("");
     const [token, setToken] = useState();
+    const [editingCategory, setEditingCategory] = useState(null);
 
     useEffect(() => {
         AsyncStorage.getItem("jwt")
@@ -73,6 +83,39 @@ const Categories = (props) => {
         setCategoryName("");
     }
 
+    const startEdit = (item) => {
+        setEditingCategory(item);
+        setCategoryName(item.name);
+    }
+
+    const cancelEdit = () => {
+        setEditingCategory(null);
+        setCategoryName("");
+    }
+
+    const updateCategory = () => {
+        if (!editingCategory) return;
+        const id = editingCategory.id || editingCategory._id;
+
+        const config = {
+            headers: {
+                Authorization: `Bearer ${token}`,
+            }
+        };
+
+        axios
+            .put(`${baseURL}categories/${id}`, { name: categoryName }, config)
+            .then((res) => {
+                const updated = categories.map((cat) =>
+                    (cat.id || cat._id) === id ? res.data : cat
+                );
+                setCategories(updated);
+                setEditingCategory(null);
+                setCategoryName("");
+            })
+            .catch((error) => alert("Error updating category"));
+    }
+
     const deleteCategory = (id) => {
         const config = {
             headers: {
@@ -83,7 +126,7 @@ const Categories = (props) => {
         axios
             .delete(`${baseURL}categories/${id}`, config)
             .then((res) => {
-                const newCategories = categories.filter((item) => item.id !== id);
+                const newCategories = categories.filter((item) => (item.id || item._id) !== id);
                 setCategories(newCategories);
             })
             .catch((error) => alert("Error delete categories"));
@@ -95,14 +138,14 @@ const Categories = (props) => {
                 <FlatList
                     data={categories}
                     renderItem={({ item, index }) => (
-                        <Item item={item} index={index} delete={deleteCategory} />
+                        <Item item={item} index={index} delete={deleteCategory} edit={startEdit} />
                     )}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.id || item._id}
                 />
             </View>
             <View style={styles.bottomBar}>
                 <View>
-                    <Text>Add Category</Text>
+                    <Text>{editingCategory ? "Edit Category" : "Add Category"}</Text>
                 </View>
                 <View style={{ width: width / 2.5 }}>
                     <TextInput
@@ -111,14 +154,33 @@ const Categories = (props) => {
                         onChangeText={(text) => setCategoryName(text)}
                     />
                 </View>
-                <View>
-                    <EasyButton
-                        medium
-                        primary
-                        onPress={() => addCategory()}
-                    >
-                        <Text style={{ color: "white", fontWeight: "bold" }}>Submit</Text>
-                    </EasyButton>
+                <View style={{ flexDirection: 'row', gap: 4 }}>
+                    {editingCategory ? (
+                        <>
+                            <EasyButton
+                                medium
+                                primary
+                                onPress={() => updateCategory()}
+                            >
+                                <Text style={{ color: "white", fontWeight: "bold" }}>Save</Text>
+                            </EasyButton>
+                            <EasyButton
+                                medium
+                                danger
+                                onPress={() => cancelEdit()}
+                            >
+                                <Text style={{ color: "white", fontWeight: "bold" }}>Cancel</Text>
+                            </EasyButton>
+                        </>
+                    ) : (
+                        <EasyButton
+                            medium
+                            primary
+                            onPress={() => addCategory()}
+                        >
+                            <Text style={{ color: "white", fontWeight: "bold" }}>Submit</Text>
+                        </EasyButton>
+                    )}
                 </View>
             </View>
         </View>
@@ -129,8 +191,8 @@ const styles = StyleSheet.create({
     bottomBar: {
         backgroundColor: "white",
         width: width,
-        height: 60,
-        padding: 2,
+        minHeight: 60,
+        padding: 6,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",

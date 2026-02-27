@@ -9,19 +9,19 @@ const TrafficLight = styled.View`
   ${(props) =>
     props.available &&
     css`
-      background: #afec1a;
+      background: #51CF66;
     `}
 
   ${(props) =>
     props.limited &&
     css`
-      background: #ffe033;
+      background: #FFD43B;
     `}
 
     ${(props) =>
     props.unavailable &&
     css`
-      background: #ec241a;
+      background: #FF8C42;
     `}
 `;
 

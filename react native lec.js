@@ -309,12 +309,6 @@ const Header = () => {
          //<View style={styles.header}>
         <SafeAreaView style={styles.header}>
        
-            <Image
-                source={require("../assets/Logo.png")}
-                resizeMode="contain"
-                style={{ height: 50 }}
-            />
-        
          </SafeAreaView>
          //</View>
     )

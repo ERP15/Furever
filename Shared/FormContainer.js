@@ -1,27 +1,31 @@
 import React from 'react';
-import { ScrollView, Dimensions, StyleSheet, Text } from 'react-native';
+import { View, Dimensions, StyleSheet, Text } from 'react-native';
 
 var { width } = Dimensions.get('window');
 
 const FormContainer = ({children, title}) => {
     return (
-        <ScrollView contentContainerStyle={styles.container}>
+        <View style={styles.container}>
             <Text style={styles.title}>{title}</Text>
             {children}
-        </ScrollView>
+        </View>
     )
 }
 
 const styles = StyleSheet.create({
     container: {
-        marginTop: 100,
-        marginBottom: 400,
+        paddingTop: 40,
+        paddingBottom: 40,
         width: width,
         justifyContent: 'center',
         alignItems: 'center'
     },
     title: {
-        fontSize: 30,
+        fontSize: 28,
+        fontWeight: 'bold',
+        marginBottom: 30,
+        color: '#FF8C42',
+        textAlign: 'center'
     }
 })
 

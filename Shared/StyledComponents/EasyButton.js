@@ -1,4 +1,4 @@
-import styled, { css } from "styled-components";
+import styled, { css } from "styled-components/native";
 
 const EasyButton = styled.TouchableOpacity`
     flex-direction: row;
@@ -11,21 +11,21 @@ const EasyButton = styled.TouchableOpacity`
     ${(props) =>
         props.primary &&
         css`
-            background: #5cb85c;
+            background: #FF8C42;
         `
     }
 
     ${(props) =>
         props.secondary &&
         css`
-            background: #62b1f6;
+            background: #20C997;
         `
     }
 
     ${(props) => 
         props.danger &&
         css`
-            background: #f40105;
+            background: #FF6B6B;
         `
     }
 

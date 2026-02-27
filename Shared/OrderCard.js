@@ -12,55 +12,49 @@ import axios from "axios";
 import baseURL from "../assets/common/baseurl";
 import { useNavigation } from '@react-navigation/native'
 
-const codes = [
-  { name: "pending", code: "3" },
-  { name: "shipped", code: "2" },
-  { name: "delivered", code: "1" },
-];
-const OrderCard = ({ item, update }) => {
-  console.log(item)
-  const [orderStatus, setOrderStatus] = useState('');
-  const [statusText, setStatusText] = useState('');
-  const [statusChange, setStatusChange] = useState(item.status);
-  const [token, setToken] = useState('');
-  const [cardColor, setCardColor] = useState('');
+const STATUS_CONFIG = {
+  Pending: { color: '#FF8C42', icon: 'time', trafficLight: 'unavailable' },
+  Processing: { color: '#339AF0', icon: 'construct', trafficLight: 'limited' },
+  Shipped: { color: '#FFD43B', icon: 'airplane', trafficLight: 'limited' },
+  Delivered: { color: '#51CF66', icon: 'checkmark-circle', trafficLight: 'available' },
+  Canceled: { color: '#FF6B6B', icon: 'close-circle', trafficLight: 'unavailable' },
+};
 
-  const navigation = useNavigation()
+const statuses = [
+  { name: "Pending", code: "Pending" },
+  { name: "Processing", code: "Processing" },
+  { name: "Shipped", code: "Shipped" },
+];
+
+const OrderCard = ({ item, update }) => {
+  const [statusChange, setStatusChange] = useState(item.status || 'Pending');
+  const [token, setToken] = useState('');
+
+  const navigation = useNavigation();
+
+  const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.Pending;
+
+  useEffect(() => {
+    AsyncStorage.getItem("jwt")
+      .then((res) => setToken(res))
+      .catch((error) => console.log(error));
+  }, []);
 
   const updateOrder = () => {
-    AsyncStorage.getItem("jwt")
-      .then((res) => {
-        setToken(res);
-      })
-      .catch((error) => console.log(error));
     const config = {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     };
-    const order = {
-      city: item.city,
-      country: item.country,
-      dateOrdered: item.dateOrdered,
-      id: item.id,
-      orderItems: item.orderItems,
-      phone: item.phone,
-      shippingAddress1: item.shippingAddress1,
-      shippingAddress2: item.shippingAddress2,
-      status: statusChange,
-      // totalPrice: item.totalPrice,
-      user: item.user,
-      zip: item.zip,
-    };
     axios
-      .put(`${baseURL}orders/${item.id}`, order, config)
+      .put(`${baseURL}orders/${item.id || item._id}`, { status: statusChange }, config)
       .then((res) => {
         if (res.status == 200 || res.status == 201) {
           Toast.show({
             topOffset: 60,
             type: "success",
             text1: "Order Updated",
-            text2: "",
+            text2: `Status changed to ${statusChange}`,
           });
           setTimeout(() => {
             navigation.navigate("Products");
@@ -75,89 +69,58 @@ const OrderCard = ({ item, update }) => {
           text2: "Please try again",
         });
       });
-  }
-  useEffect(() => {
-    if (item.status == "3") {
-      setOrderStatus(<TrafficLight unavailable></TrafficLight>);
-      setStatusText("pending");
-      setCardColor("#E74C3C");
-    } else if (item.status == "2") {
-      setOrderStatus(<TrafficLight limited></TrafficLight>);
-      setStatusText("shipped");
-      setCardColor("#F1C40F");
-    } else {
-      setOrderStatus(<TrafficLight available></TrafficLight>);
-      setStatusText("delivered");
-      setCardColor("#2ECC71");
-    }
-
-    return () => {
-      setOrderStatus();
-      setStatusText();
-      setCardColor();
-    };
-  }, []);
+  };
 
   return (
-
-    <View style={[{ backgroundColor: cardColor }, styles.container]}>
+    <View style={[{ backgroundColor: cfg.color }, styles.container]}>
       <View style={styles.container}>
-        <Text>Order Number: #{item.id}</Text>
+        <Text style={styles.orderNumber}>Order #{(item.id || item._id || '').toString().slice(-8)}</Text>
       </View>
       <View style={{ marginTop: 10 }}>
-        <Text>
-          Status: {statusText} {orderStatus}
-        </Text>
-        <Text>
+        <View style={styles.statusRow}>
+          <Ionicons name={cfg.icon} size={18} color="white" />
+          <Text style={styles.statusLabel}> {item.status || 'Pending'}</Text>
+        </View>
+        <Text style={styles.detailText}>
           Address: {item.shippingAddress1} {item.shippingAddress2}
         </Text>
-        <Text>City: {item.city}</Text>
-        <Text>Country: {item.country}</Text>
-        <Text>Date Ordered: {item.dateOrdered.split("T")[0]}</Text>
+        <Text style={styles.detailText}>City: {item.city}</Text>
+        <Text style={styles.detailText}>Country: {item.country}</Text>
+        {item.paymentMethod && (
+          <Text style={styles.detailText}>Payment: {item.paymentMethod === 'gcash' ? 'GCash' : item.paymentMethod === 'card' ? 'Card' : item.paymentMethod === 'cod' ? 'COD' : item.paymentMethod}</Text>
+        )}
+        <Text style={styles.detailText}>
+          Date Ordered: {item.dateOrdered ? item.dateOrdered.split("T")[0] : 'N/A'}
+        </Text>
         <View style={styles.priceContainer}>
           <Text>Price: </Text>
-          <Text style={styles.price}>$ {item.totalPrice}</Text>
+          <Text style={styles.price}>$ {item.totalPrice ? item.totalPrice.toFixed(2) : '0.00'}</Text>
         </View>
-        {/* {item.editMode ? ( */}
-        {update ? <View>
-          <>
-            <Picker
-              width="80%"
 
-              style={{ width: undefined }}
+        {update ? (
+          <View>
+            <Picker
+              style={{ width: '100%', backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 8, marginTop: 10 }}
               selectedValue={statusChange}
-              color="white"
-              placeholder="Change Status"
-              placeholderTextColor="white"
-              placeholderStyle={{ color: '#FFFFFF' }}
-              placeholderIconColor="#007aff"
               onValueChange={(e) => setStatusChange(e)}
             >
-              {codes.map((c) => {
-                return <Picker.Item
-                  key={c.code}
-                  label={c.name}
-                  value={c.code}
-                />
-              })}
+              {statuses.map((s) => (
+                <Picker.Item key={s.code} label={s.name} value={s.code} />
+              ))}
             </Picker>
             <EasyButton
               secondary
               large
               onPress={() => updateOrder()}
             >
-              <Text style={{ color: "white" }}>Update</Text>
+              <Text style={{ color: "white" }}>Update Status</Text>
             </EasyButton>
-          </>
-        </View> : null}
-
-
+          </View>
+        ) : null}
       </View>
     </View>
-
-
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -165,8 +128,27 @@ const styles = StyleSheet.create({
     margin: 10,
     borderRadius: 10,
   },
+  orderNumber: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'white',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  statusLabel: {
+    color: 'white',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  detailText: {
+    color: 'white',
+    marginVertical: 2,
+  },
   title: {
-    backgroundColor: "#62B1F6",
+    backgroundColor: "#20C997",
     padding: 5,
   },
   priceContainer: {

@@ -2,8 +2,11 @@ import { legacy_createStore as createStore, combineReducers, applyMiddleware } f
 import { thunk } from 'redux-thunk';
 
 import cartItems from './Reducers/cartItems';
+import wishlistItems from './Reducers/wishlistItems';
+
 const reducers = combineReducers({
-    cartItems: cartItems
+    cartItems: cartItems,
+    wishlistItems: wishlistItems
 })
 
 const store = createStore(

@@ -3,10 +3,13 @@ import { jwtDecode } from "jwt-decode"
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import Toast from "react-native-toast-message"
 import baseURL from "../../assets/common/baseurl"
+import store from "../../Redux/store"
+import { loadUserCart, loadUserWishlist, setCartUserId } from "../../Redux/Actions/cartActions"
+import { SET_CART, SET_WISHLIST } from "../../Redux/constants"
 
 export const SET_CURRENT_USER = "SET_CURRENT_USER";
 
-export const loginUser = (user, dispatch) => {
+export const loginUser = (user, dispatch, navigation) => {
     
     fetch(`${baseURL}users/login`, {
         method: "POST",
@@ -16,17 +19,51 @@ export const loginUser = (user, dispatch) => {
             "Content-Type": "application/json",
         },
     })
-    .then((res) => res.json())
+    .then((res) => {
+        if (res.status === 403) {
+            return res.json().then((data) => {
+                if (data.requiresVerification) {
+                    Toast.show({
+                        topOffset: 60,
+                        type: "info",
+                        text1: "Email not verified",
+                        text2: "Please verify your email to continue.",
+                    });
+                    if (navigation) {
+                        navigation.navigate("Verify Email", { email: data.email || user.email });
+                    }
+                } else {
+                    Toast.show({
+                        topOffset: 60,
+                        type: "error",
+                        text1: data.message || "Login failed",
+                    });
+                }
+                return null;
+            });
+        }
+        return res.json();
+    })
     .then((data) => {
-        if (data) {
-            // console.log(data)
+        if (data && data.token) {
             const token = data.token;
             AsyncStorage.setItem("jwt", token)
             const decoded = jwtDecode(token)
             console.log("token",token)
-            dispatch(setCurrentUser(decoded, user))
-        } else {
-           logoutUser(dispatch)
+            dispatch(setCurrentUser(decoded, data.user || user))
+
+            // Load persisted cart & wishlist for this user
+            const userId = decoded.userId;
+            setCartUserId(userId);
+            store.dispatch(loadUserCart(userId));
+            store.dispatch(loadUserWishlist(userId));
+        } else if (data && !data.token) {
+            Toast.show({
+                topOffset: 60,
+                type: "error",
+                text1: data.message || "Login failed",
+                text2: ""
+            });
         }
     })
     .catch((err) => {
@@ -56,6 +93,10 @@ export const getUserProfile = (id) => {
 
 export const logoutUser = (dispatch) => {
     AsyncStorage.removeItem("jwt");
+    // Clear Redux cart/wishlist state but keep AsyncStorage data for next login
+    setCartUserId(null);
+    store.dispatch({ type: SET_CART, payload: [] });
+    store.dispatch({ type: SET_WISHLIST, payload: [] });
     dispatch(setCurrentUser({}))
 }
 
