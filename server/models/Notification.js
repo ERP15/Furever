@@ -4,7 +4,7 @@ const Notification = {
   find(filter = {}) {
     let sql = 'SELECT * FROM notifications';
     const conditions = []; const params = [];
-    if (filter.userId) { conditions.push('userId = ?'); params.push(filter.userId); }
+    if (filter.user || filter.userId) { conditions.push('userId = ?'); params.push(filter.user || filter.userId); }
     if (filter.read !== undefined) { conditions.push('read = ?'); params.push(filter.read ? 1 : 0); }
     if (filter.type) { conditions.push('type = ?'); params.push(filter.type); }
     if (filter.productId) { conditions.push('productId = ?'); params.push(filter.productId); }

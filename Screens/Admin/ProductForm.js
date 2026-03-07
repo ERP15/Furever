@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState } from "react"
 import {
     View,
     Text,
@@ -23,10 +23,9 @@ import Error from "../../Shared/Error"
 import axios from "axios"
 import * as ImagePicker from "expo-image-picker"
 import { useFocusEffect, useNavigation } from "@react-navigation/native"
+import { useCallback } from "react"
 import mime from "mime";
 import { Ionicons } from "@expo/vector-icons";
-import { Modal } from "react-native";
-import BarcodeScanner from "../../Shared/BarcodeScanner";
 
 const PET_TYPES = ['Dog', 'Cat', 'Fish', 'Bird', 'Rabbit', 'Hamster', 'Reptile', 'Other'];
 const PRODUCT_CATEGORIES = [
@@ -50,54 +49,68 @@ const ProductForm = (props) => {
     const [expirationDate, setExpirationDate] = useState('');
     const [sizeVariants, setSizeVariants] = useState('');
     const [lowStockThreshold, setLowStockThreshold] = useState('10');
-    const [barcode, setBarcode] = useState('');
-    const [showScanner, setShowScanner] = useState(false);
 
     let navigation = useNavigation()
 
-    useEffect(() => {
-        if (!props.route.params) {
-            setItem(null);
-        } else {
-            const editItem = props.route.params.item;
-            setItem(editItem);
-            setName(editItem.name || '');
-            setPrice(editItem.price?.toString() || '');
-            setDescription(editItem.description || '');
-            setMainImage(editItem.image);
-            setImage(editItem.image || '');
-            setCategory(editItem.category?._id || editItem.category || '');
-            setPickerValue(editItem.category?._id || editItem.category || '');
-            setCountInStock(editItem.countInStock?.toString() || '');
-            setLowStockThreshold(editItem.lowStockThreshold?.toString() || '10');
-            setPetType(editItem.petType || '');
-            setBarcode(editItem.barcode || '');
-            setExpirationDate(editItem.expirationDate || '');
-            setSizeVariants(editItem.variants ? editItem.variants.join(', ') : '');
-        }
-        AsyncStorage.getItem("jwt")
-            .then((res) => {
-                setToken(res)
-            })
-            .catch((error) => console.log(error))
-        axios
-            .get(`${baseURL}categories`)
-            .then((res) => setCategories(res.data))
-            .catch((error) => alert("Error to load categories"));
-        (async () => {
-            if (Platform.OS !== "web") {
-                const {
-                    status,
-                } = await ImagePicker.requestCameraPermissionsAsync();
-                if (status !== "granted") {
-                    alert("Sorry, we need camera roll permissions to make this work!")
-                }
+    useFocusEffect(
+        useCallback(() => {
+            if (!props.route.params) {
+                // Reset form for adding new product
+                setItem(null);
+                setName('');
+                setPrice('');
+                setDescription('');
+                setImage('');
+                setMainImage(undefined);
+                setCategory('');
+                setPickerValue('');
+                setCountInStock('');
+                setLowStockThreshold('10');
+                setPetType('');
+                setExpirationDate('');
+                setSizeVariants('');
+                setError(null);
+            } else {
+                const editItem = props.route.params.item;
+                setItem(editItem);
+                setName(editItem.name || '');
+                setPrice(editItem.price?.toString() || '');
+                setDescription(editItem.description || '');
+                setMainImage(editItem.image);
+                setImage(editItem.image || '');
+                setCategory(String(editItem.category?._id || editItem.category?.id || editItem.category || ''));
+                setPickerValue(String(editItem.category?._id || editItem.category?.id || editItem.category || ''));
+                setCountInStock(editItem.countInStock?.toString() || '');
+                setLowStockThreshold(editItem.lowStockThreshold?.toString() || '10');
+                setPetType(editItem.petType || '');
+                setExpirationDate(editItem.expirationDate || '');
+                setSizeVariants(editItem.variants ? editItem.variants.join(', ') : '');
+                setError(null);
             }
-        })();
-        return () => {
-            setCategories([])
-        }
-    }, [])
+            AsyncStorage.getItem("jwt")
+                .then((res) => {
+                    setToken(res)
+                })
+                .catch((error) => console.log(error))
+            axios
+                .get(`${baseURL}categories`)
+                .then((res) => setCategories(res.data))
+                .catch((error) => alert("Error to load categories"));
+            (async () => {
+                if (Platform.OS !== "web") {
+                    const {
+                        status,
+                    } = await ImagePicker.requestCameraPermissionsAsync();
+                    if (status !== "granted") {
+                        alert("Sorry, we need camera roll permissions to make this work!")
+                    }
+                }
+            })();
+            return () => {
+                setCategories([])
+            }
+        }, [props.route.params])
+    )
 
     const takePhoto = async () => {
         try {
@@ -153,7 +166,6 @@ const ProductForm = (props) => {
         }
 
         let formData = new FormData();
-        const newImageUri = "file:///" + image.split("file:/").join("");
 
         formData.append("name", name);
         formData.append("price", price);
@@ -162,19 +174,24 @@ const ProductForm = (props) => {
         formData.append("countInStock", countInStock);
         formData.append("lowStockThreshold", lowStockThreshold || '10');
         formData.append("petType", petType);
-        formData.append("barcode", barcode);
         formData.append("expirationDate", expirationDate);
         if (sizeVariants) {
             formData.append("variants", JSON.stringify(sizeVariants.split(',').map(v => v.trim())));
         }
 
-        if (image && !image.startsWith('http')) {
+        if (image && !image.startsWith('http') && !image.startsWith('data:')) {
+            // New image picked from device - send as file upload
+            const newImageUri = "file:///" + image.split("file:/").join("");
             formData.append("image", {
                 uri: newImageUri,
                 type: mime.getType(newImageUri),
                 name: newImageUri.split("/").pop()
             });
+        } else if (image && image.startsWith('http')) {
+            // HTTP URL - send as text
+            formData.append("image", image);
         }
+        // If image is a data: URI (existing stored image), don't resend it — server already has it
 
         const config = {
             headers: {
@@ -328,9 +345,9 @@ const ProductForm = (props) => {
                     {categories.map((c, index) => {
                         return (
                             <Picker.Item
-                                key={c.id}
+                                key={c._id || c.id}
                                 label={c.name}
-                                value={c.id} />
+                                value={String(c._id || c.id)} />
                         )
                     })}
                 </Picker>
@@ -392,51 +409,6 @@ const ProductForm = (props) => {
                 onChangeText={(text) => setExpirationDate(text)}
             />
 
-            {/* Barcode / QR Code */}
-            <Text style={styles.sectionHeader}>Barcode / QR Code</Text>
-            <View style={styles.label}>
-                <Text style={styles.labelText}>Product Barcode</Text>
-                <Text style={styles.helperText}>
-                    Enter manually or scan with camera
-                </Text>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <View style={{ flex: 1 }}>
-                    <Input
-                        placeholder="e.g., FE-FOOD-001"
-                        name="barcode"
-                        id="barcode"
-                        value={barcode}
-                        onChangeText={(text) => setBarcode(text)}
-                    />
-                </View>
-                <TouchableOpacity
-                    onPress={() => setShowScanner(true)}
-                    style={{
-                        backgroundColor: '#FF8C42',
-                        padding: 12,
-                        borderRadius: 8,
-                        marginBottom: 15,
-                    }}
-                >
-                    <Ionicons name="scan" size={24} color="#fff" />
-                </TouchableOpacity>
-            </View>
-            {barcode ? (
-                <View style={{
-                    backgroundColor: '#FFF3E0',
-                    padding: 10,
-                    borderRadius: 8,
-                    marginBottom: 15,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 8,
-                }}>
-                    <Ionicons name="barcode-outline" size={20} color="#FF8C42" />
-                    <Text style={{ color: '#333', fontWeight: '600' }}>{barcode}</Text>
-                </View>
-            ) : null}
-
             {error ? <Error message={error} /> : null}
             <View style={styles.buttonContainer}>
                 <EasyButton
@@ -449,27 +421,6 @@ const ProductForm = (props) => {
                 </EasyButton>
             </View>
         </FormContainer>
-        {/* Barcode Scanner Modal */}
-        <Modal
-            visible={showScanner}
-            animationType="slide"
-            onRequestClose={() => setShowScanner(false)}
-        >
-            <BarcodeScanner
-                title="📦 Scan Product Barcode"
-                onScan={({ data }) => {
-                    setBarcode(data);
-                    setShowScanner(false);
-                    Toast.show({
-                        topOffset: 60,
-                        type: 'success',
-                        text1: 'Barcode Scanned',
-                        text2: data,
-                    });
-                }}
-                onClose={() => setShowScanner(false)}
-            />
-        </Modal>
         </KeyboardAwareScrollView>
     )
 }

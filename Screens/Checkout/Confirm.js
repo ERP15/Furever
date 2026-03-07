@@ -27,6 +27,22 @@ const Confirm = (props) => {
             .catch((error) => console.log(error))
     }, [])
 
+    React.useEffect(() => {
+        console.log('\n💰 CONFIRM SCREEN');
+        const orderData = params?.order || params;
+        console.log('  Items count:', orderData?.orderItems?.length || 0);
+        if (orderData?.orderItems?.length) {
+            const total = orderData.orderItems.reduce((t, i) => t + (i.price * (i.quantity || 1)), 0);
+            console.log(`  Total: $${total}`);
+            orderData.orderItems.forEach((item, idx) => {
+                console.log(`    ${idx}: ${item.name} $${item.price} x${item.quantity || 1}`);
+            });
+        } else {
+            console.log('  ⚠️ NO ITEMS!');
+        }
+        console.log('');
+    }, [params]);
+
     if (!params) {
         return (
             <View style={styles.emptyContainer}>
@@ -61,16 +77,34 @@ const Confirm = (props) => {
             }
         }
 
-        // Include paymentMethod in the order data sent to the server
+        // Calculate total from orderItems
+        const totalPrice = orderData.orderItems?.reduce((t, i) => t + (i.price * (i.quantity || 1)), 0) || 0;
+        console.log('💰 PLACING ORDER - Total calculated:', totalPrice);
+
+        const normalizedOrderItems = (orderData.orderItems || []).map((item) => ({
+            ...item,
+            product: item.product || item.productId || item._id || item.id,
+        }));
+
+        // Include paymentMethod and totalPrice in the order data sent to the server
         const orderPayload = {
             ...orderData,
+            orderItems: normalizedOrderItems,
+            totalPrice,
             paymentMethod: orderData.paymentMethod || orderData.payment?.method || '',
         };
+
+        console.log('📤 Order payload being sent:', {
+            items: orderPayload.orderItems?.length,
+            total: orderPayload.totalPrice,
+            method: orderPayload.paymentMethod,
+        });
 
         axios
             .post(`${baseURL}orders`, orderPayload, config)
             .then((res) => {
                 setLoading(false);
+                console.log('✅ Order created successfully, ID:', res.data?.id);
                 Toast.show({
                     topOffset: 60,
                     type: "success",

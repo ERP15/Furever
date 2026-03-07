@@ -121,6 +121,7 @@ const ProductCard = (props) => {
                 <TouchableOpacity 
                     style={styles.addButton}
                     onPress={() => {
+                        console.log(`➕ Adding to cart: ${name} ($${price})`);
                         dispatch(addToCart({ ...props, quantity: 1, })),
                             Toast.show({
                                 topOffset: 60,

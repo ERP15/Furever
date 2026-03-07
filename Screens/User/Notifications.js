@@ -83,7 +83,7 @@ const Notifications = () => {
     try {
       const userId = context.stateUser.user?.userId || context.stateUser.user?.sub;
       const token = await AsyncStorage.getItem('jwt');
-      await axios.put(`${baseURL}notifications/user/${userId}/read-all`, {}, {
+      await axios.put(`${baseURL}notifications/user/${userId}/mark-all-read`, {}, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));

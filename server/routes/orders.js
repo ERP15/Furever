@@ -112,32 +112,48 @@ router.get('/:id', (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const { orderItems, shippingAddress1, shippingAddress2, phone, status, totalPrice, paymentMethod, user } = req.body;
+    console.log('\n📦 CREATE ORDER REQUEST');
+    console.log('  Items:', orderItems?.length || 0);
+    console.log('  Total Price received:', totalPrice, '(type: ' + typeof totalPrice + ')');
+    console.log('  Payment Method:', paymentMethod);
+    
     if (!orderItems || !orderItems.length) {
       return res.status(400).json({ message: 'No order items.' });
     }
+
+    const parsedTotal = parseFloat(totalPrice) || 0;
+    console.log('  Parsed total for DB:', parsedTotal);
+    
+    const normalizedItems = orderItems.map(item => {
+      const resolvedProductId = parseInt(item.product || item.productId || item._id || item.id);
+      return {
+        product: Number.isNaN(resolvedProductId) ? null : resolvedProductId,
+        name: item.name || '',
+        price: parseFloat(item.price) || 0,
+        image: item.image || '',
+        quantity: parseInt(item.quantity) || 1,
+      };
+    });
 
     const order = Order.create({
       shippingAddress1: shippingAddress1 || '',
       shippingAddress2: shippingAddress2 || '',
       phone: phone || '',
       status: status || 'Pending',
-      totalPrice: parseFloat(totalPrice) || 0,
+      totalPrice: parsedTotal,
       paymentMethod: paymentMethod || '',
       user: parseInt(user),
-    }, orderItems.map(item => ({
-      product: parseInt(item.product),
-      name: item.name || '',
-      price: parseFloat(item.price) || 0,
-      image: item.image || '',
-      quantity: parseInt(item.quantity) || 1,
-    })));
+    }, normalizedItems);
+
+    console.log('✅ Order created with ID:', order.id, 'Total:', order.totalPrice);
 
     // Decrease stock for each item
-    for (const item of orderItems) {
-      const prod = Product.findById(parseInt(item.product));
+    for (const item of normalizedItems) {
+      if (!item.product) continue;
+      const prod = Product.findById(item.product);
       if (prod) {
         const newStock = Math.max(0, prod.countInStock - (parseInt(item.quantity) || 1));
-        Product.update(parseInt(item.product), { countInStock: newStock });
+        Product.update(item.product, { countInStock: newStock });
       }
     }
 
@@ -146,7 +162,7 @@ router.post('/', async (req, res) => {
     if (userObj) {
       sendOrderStatusEmail(userObj, order, 'Pending');
       Notification.create({
-        user: userObj.id, type: 'order',
+        user: userObj.id, type: 'order_confirmed',
         title: 'Order Placed',
         message: `Your order #${order._id} has been placed successfully!`,
         orderId: order.id,
@@ -157,7 +173,7 @@ router.post('/', async (req, res) => {
     const admins = User.find().filter(u => u.isAdmin);
     for (const admin of admins) {
       Notification.create({
-        user: admin.id, type: 'order',
+        user: admin.id, type: 'admin_new_order',
         title: 'New Order',
         message: `New order #${order._id} placed${userObj ? ' by ' + userObj.name : ''}.`,
         orderId: order.id,
@@ -191,12 +207,33 @@ router.put('/:id', async (req, res) => {
       const userObj = User.findById(order.userId);
       if (userObj) {
         sendOrderStatusEmail(userObj, order, status);
+        // Map status to notification type
+        const statusTypeMap = {
+          'Pending': 'order_confirmed',
+          'Processing': 'order_processing',
+          'Shipped': 'order_shipped',
+          'Delivered': 'order_delivered',
+          'Cancelled': 'order_canceled',
+        };
         Notification.create({
-          user: userObj.id, type: 'order',
+          user: userObj.id, type: statusTypeMap[status] || 'order_confirmed',
           title: `Order ${status}`,
           message: `Your order #${order._id} status has been updated to ${status}.`,
           orderId: order.id,
         });
+      }
+
+      // Notify admins for delivered orders
+      if (status === 'Delivered') {
+        const admins = User.find().filter(u => u.isAdmin);
+        for (const admin of admins) {
+          Notification.create({
+            user: admin.id, type: 'admin_order_delivered',
+            title: 'Order Delivered',
+            message: `Order #${order._id} has been delivered to ${userObj.name}.`,
+            orderId: order.id,
+          });
+        }
       }
     }
     return res.status(200).json(order);
@@ -235,7 +272,7 @@ router.put('/:id/cancel', async (req, res) => {
       if (userObj) {
         sendOrderStatusEmail(userObj, order, 'Cancelled');
         Notification.create({
-          user: userObj.id, type: 'order',
+          user: userObj.id, type: 'order_canceled',
           title: 'Order Cancelled',
           message: `Your order #${order._id} has been cancelled.`,
           orderId: order.id,

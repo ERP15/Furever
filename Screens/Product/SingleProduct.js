@@ -5,6 +5,7 @@ import {
 } from "react-native";
 import { Surface } from "react-native-paper";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from '@react-navigation/native';
 import { useDispatch, useSelector } from 'react-redux';
 import { addToCart } from '../../Redux/Actions/cartActions';
 import { addToWishlist, removeFromWishlist } from '../../Redux/Actions/cartActions';
@@ -47,6 +48,7 @@ const SingleProduct = ({ route }) => {
     const [editRating, setEditRating] = useState(0);
     const [editText, setEditText] = useState('');
     const [quantity, setQuantity] = useState(1);
+    const [userHasDelivered, setUserHasDelivered] = useState(false);
     const dispatch = useDispatch();
     const context = useContext(AuthGlobal);
     const wishlistItems = useSelector(state => state.wishlistItems);
@@ -65,9 +67,65 @@ const SingleProduct = ({ route }) => {
             });
     }, [item]);
 
-    useEffect(() => {
-        loadReviews();
-    }, [loadReviews]);
+    const checkUserPurchaseStatus = useCallback(async () => {
+        if (!context.stateUser?.isAuthenticated) {
+            console.log('❌ Not authenticated');
+            setUserHasDelivered(false);
+            return;
+        }
+        try {
+            const token = await AsyncStorage.getItem('jwt');
+            const userId = context.stateUser.user?.userId;
+            const productId = item._id || item.id;
+            
+            console.log('\n🔍 DETAILED PURCHASE CHECK:');
+            console.log('  User ID:', userId, '(type: ' + typeof userId + ')');
+            console.log('  Product ID:', productId, '(type: ' + typeof productId + ')');
+            
+            const res = await axios.get(`${baseURL}orders/user/${userId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            
+            console.log('  Total orders:', res.data?.length || 0);
+            
+            if (!res.data || res.data.length === 0) {
+                console.log('  ❌ No orders found');
+                setUserHasDelivered(false);
+                return;
+            }
+            
+            let foundDelivered = false;
+            res.data.forEach((order, idx) => {
+                console.log(`  Order ${idx}: ID=${order.id}, Status=${order.status}, Items=${order.orderItems?.length || 0}`);
+                
+                if (order.status === 'Delivered') {
+                    console.log(`    ✅ Delivered order found`);
+                    order.orderItems?.forEach((oi, itemIdx) => {
+                        const oi_prodId = oi.product || oi.productId;
+                        const match = String(oi_prodId) === String(productId);
+                        console.log(`      Item ${itemIdx}: ProdID=${oi_prodId} ${match ? '✅ MATCH!' : '❌ no match'}`)
+                        if (match) {
+                            foundDelivered = true;
+                        }
+                    });
+                }
+            });
+            
+            console.log('Result: ' + (foundDelivered ? '✅ CAN REVIEW' : '❌ CANNOT REVIEW') + '\n');
+            setUserHasDelivered(foundDelivered);
+        } catch (err) {
+            console.error('❌ Purchase check error:', err.message);
+            setUserHasDelivered(false);
+        }
+    }, [item, context.stateUser]);
+
+    useFocusEffect(
+        useCallback(() => {
+            console.log('🔄 SingleProduct screen focused - refreshing reviews and purchase status');
+            loadReviews();
+            checkUserPurchaseStatus();
+        }, [loadReviews, checkUserPurchaseStatus])
+    );
 
     const handleAddToCart = () => {
         dispatch(addToCart({ ...item, quantity }));
@@ -99,20 +157,29 @@ const SingleProduct = ({ route }) => {
             Alert.alert('Rating Required', 'Please select a star rating.');
             return;
         }
+        if (!userHasDelivered) {
+            Alert.alert('Cannot Review', 'You can only review products you have purchased and received.');
+            return;
+        }
 
         try {
             const token = await AsyncStorage.getItem('jwt');
+            const productId = item._id || item.id;
+            console.log('📝 Submitting review for product:', productId, 'rating:', userRating);
+            
             const res = await axios.post(
-                `${baseURL}products/${item._id || item.id}/reviews`,
+                `${baseURL}products/${productId}/reviews`,
                 { rating: userRating, text: reviewText },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
+            console.log('✅ Review submitted successfully:', res.data);
             Toast.show({ topOffset: 60, type: "success", text1: "Review submitted!", text2: "Your review is now visible." });
             setShowReviewForm(false);
             loadReviews();
             setUserRating(0);
             setReviewText('');
         } catch (err) {
+            console.error('❌ Review submission error:', err.response?.data || err.message);
             const apiMessage =
                 err?.response?.data?.message || err?.message || 'Failed to submit review';
             Toast.show({
@@ -121,9 +188,6 @@ const SingleProduct = ({ route }) => {
                 text1: "Review Failed",
                 text2: apiMessage
             });
-            setShowReviewForm(false);
-            setUserRating(0);
-            setReviewText('');
         }
     };
 
@@ -268,14 +332,6 @@ const SingleProduct = ({ route }) => {
                         </View>
                     )}
 
-                    {/* Barcode */}
-                    {item.barcode ? (
-                        <View style={styles.barcodeRow}>
-                            <Ionicons name="barcode-outline" size={16} color="#888" />
-                            <Text style={styles.barcodeText}>Barcode: {item.barcode}</Text>
-                        </View>
-                    ) : null}
-
                     {/* Description */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Description</Text>
@@ -300,14 +356,30 @@ const SingleProduct = ({ route }) => {
                     <View style={styles.section}>
                         <View style={styles.reviewHeader}>
                             <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
-                            <TouchableOpacity
-                                onPress={() => setShowReviewForm(!showReviewForm)}
-                                style={styles.writeReviewButton}
-                            >
-                                <Ionicons name="create-outline" size={16} color="#FF8C42" />
-                                <Text style={styles.writeReviewText}>Write Review</Text>
-                            </TouchableOpacity>
+                            {userHasDelivered && (
+                                <TouchableOpacity
+                                    onPress={() => setShowReviewForm(!showReviewForm)}
+                                    style={styles.writeReviewButton}
+                                >
+                                    <Ionicons name="create-outline" size={16} color="#FF8C42" />
+                                    <Text style={styles.writeReviewText}>Write Review</Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
+
+                        {!context.stateUser?.isAuthenticated && (
+                            <View style={styles.reviewInfo}>
+                                <Ionicons name="information-circle-outline" size={16} color="#888" />
+                                <Text style={styles.reviewInfoText}>Login to write a review</Text>
+                            </View>
+                        )}
+
+                        {context.stateUser?.isAuthenticated && !userHasDelivered && (
+                            <View style={styles.reviewInfo}>
+                                <Ionicons name="information-circle-outline" size={16} color="#FF8C42" />
+                                <Text style={styles.reviewInfoText}>Purchase and receive this product to write a review</Text>
+                            </View>
+                        )}
 
                         {/* Review Form */}
                         {showReviewForm && (
@@ -522,17 +594,6 @@ const styles = StyleSheet.create({
         fontSize: 13,
         color: '#888',
     },
-    barcodeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        marginBottom: 12,
-    },
-    barcodeText: {
-        fontSize: 13,
-        color: '#888',
-        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    },
     section: {
         backgroundColor: 'white',
         borderRadius: 12,
@@ -686,6 +747,20 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: '700',
+    },
+    reviewInfo: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
+        padding: 12,
+        marginVertical: 8,
+        gap: 8,
+    },
+    reviewInfoText: {
+        fontSize: 13,
+        color: '#666',
+        flex: 1,
     },
 })
 

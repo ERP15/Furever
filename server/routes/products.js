@@ -7,7 +7,7 @@ const Order = require('../models/Order');
 const { db } = require('../database');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fieldSize: 10 * 1024 * 1024 } });
 
 // ─── ADMIN: ALL REVIEWS (must be before /:id) ───────────────
 router.get('/reviews/all', (req, res) => {
@@ -198,14 +198,25 @@ router.post('/:id/reviews', (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Check: has user purchased this product?
-    const userId = decoded.userId;
+    const userId = parseInt(decoded.userId);
     const productId = parseInt(req.params.id);
     const purchased = db.prepare(
-      `SELECT 1 FROM order_items oi
+      `SELECT 1
+       FROM order_items oi
        JOIN orders o ON oi.orderId = o.id
-       WHERE o.userId = ? AND oi.productId = ? AND o.status = 'Delivered'
+       LEFT JOIN products p ON p.id = ?
+       WHERE o.userId = ?
+         AND o.status = 'Delivered'
+         AND (
+           oi.productId = ?
+           OR (
+             oi.productId IS NULL
+             AND p.id IS NOT NULL
+             AND LOWER(TRIM(COALESCE(oi.name, ''))) = LOWER(TRIM(COALESCE(p.name, '')))
+           )
+         )
        LIMIT 1`
-    ).get(userId, productId);
+    ).get(productId, userId, productId);
     if (!purchased) {
       return res.status(403).json({ message: 'You can only review products you have purchased and received.' });
     }

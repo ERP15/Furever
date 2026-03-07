@@ -32,6 +32,21 @@ const OrderCard = ({ item, update }) => {
 
   const navigation = useNavigation();
 
+  // Calculate total from orderItems if totalPrice not available
+  const displayTotal = item.totalPrice || (item.orderItems?.reduce((t, oi) => t + (oi.price * (oi.quantity || 1)), 0) || 0);
+  
+  React.useEffect(() => {
+    console.log(`📋 OrderCard for Order #${(item.id || item._id).toString().slice(-8)}`);
+    console.log(`   Status: ${item.status}`);
+    console.log(`   totalPrice field: ${item.totalPrice}`);
+    console.log(`   orderItems: ${item.orderItems?.length || 0} items`);
+    if (item.orderItems?.length) {
+      const calc = item.orderItems.reduce((t, oi) => t + (oi.price * (oi.quantity || 1)), 0);
+      console.log(`   Calculated from items: $${calc}`);
+    }
+    console.log(`   Display total: $${displayTotal}`);
+  }, [item]);
+
   const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.Pending;
 
   useEffect(() => {
@@ -57,7 +72,7 @@ const OrderCard = ({ item, update }) => {
             text2: `Status changed to ${statusChange}`,
           });
           setTimeout(() => {
-            navigation.navigate("Products");
+            navigation.navigate("Orders");
           }, 500);
         }
       })
@@ -94,7 +109,7 @@ const OrderCard = ({ item, update }) => {
         </Text>
         <View style={styles.priceContainer}>
           <Text>Price: </Text>
-          <Text style={styles.price}>$ {item.totalPrice ? item.totalPrice.toFixed(2) : '0.00'}</Text>
+          <Text style={styles.price}>$ {displayTotal.toFixed(2)}</Text>
         </View>
 
         {update ? (

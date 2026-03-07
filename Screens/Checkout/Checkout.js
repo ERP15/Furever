@@ -72,8 +72,23 @@ const Checkout = (props) => {
     }, [])
 
     const checkOut = () => {
-        console.log("orders", orderItems)
-        let order = {
+        console.log('\n💳 CHECKOUT INITIATED');
+        console.log('  Cart items count:', orderItems?.length || 0);
+        
+        if (!orderItems || orderItems.length === 0) {
+            Toast.show({ topOffset: 60, type: 'error', text1: 'Cart is empty!', text2: 'Add products to proceed' });
+            return;
+        }
+        
+        // Calculate subtotal
+        const subtotal = orderItems.reduce((t, i) => {
+            const itemTotal = i.price * (i.quantity || 1);
+            console.log(`  - ${i.name}: $${i.price} x ${i.quantity || 1} = $${itemTotal}`);
+            return t + itemTotal;
+        }, 0);
+        console.log(`  Subtotal: $${subtotal}`);
+        
+        const order = {
             dateOrdered: Date.now(),
             orderItems,
             phone,
@@ -82,7 +97,9 @@ const Checkout = (props) => {
             status: "Pending",
             user,
         }
-        console.log("ship", order)
+        console.log('✅ Order forwarding to Payment with items:', order.orderItems?.length);
+        console.log('   Total should be $' + subtotal + '\n');
+        
         navigation.navigate("Payment", { order })
     }
 
