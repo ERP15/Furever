@@ -109,6 +109,142 @@ db.exec(`
   );
 `);
 
+// ─── DB consistency triggers ───────────────────────────────
+db.exec(`
+  CREATE TRIGGER IF NOT EXISTS trg_order_items_after_insert
+  AFTER INSERT ON order_items
+  BEGIN
+    UPDATE orders
+    SET totalPrice = COALESCE((
+      SELECT SUM(COALESCE(price, 0) * COALESCE(quantity, 1))
+      FROM order_items
+      WHERE orderId = NEW.orderId
+    ), 0),
+    updatedAt = datetime('now')
+    WHERE id = NEW.orderId;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_order_items_after_update
+  AFTER UPDATE ON order_items
+  BEGIN
+    UPDATE orders
+    SET totalPrice = COALESCE((
+      SELECT SUM(COALESCE(price, 0) * COALESCE(quantity, 1))
+      FROM order_items
+      WHERE orderId = NEW.orderId
+    ), 0),
+    updatedAt = datetime('now')
+    WHERE id = NEW.orderId;
+
+    UPDATE orders
+    SET totalPrice = COALESCE((
+      SELECT SUM(COALESCE(price, 0) * COALESCE(quantity, 1))
+      FROM order_items
+      WHERE orderId = OLD.orderId
+    ), 0),
+    updatedAt = datetime('now')
+    WHERE id = OLD.orderId;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_order_items_after_delete
+  AFTER DELETE ON order_items
+  BEGIN
+    UPDATE orders
+    SET totalPrice = COALESCE((
+      SELECT SUM(COALESCE(price, 0) * COALESCE(quantity, 1))
+      FROM order_items
+      WHERE orderId = OLD.orderId
+    ), 0),
+    updatedAt = datetime('now')
+    WHERE id = OLD.orderId;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_reviews_after_insert
+  AFTER INSERT ON reviews
+  BEGIN
+    UPDATE products
+    SET numReviews = (SELECT COUNT(*) FROM reviews WHERE productId = NEW.productId),
+        rating = COALESCE((SELECT AVG(rating) FROM reviews WHERE productId = NEW.productId), 0),
+        updatedAt = datetime('now')
+    WHERE id = NEW.productId;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_reviews_after_update
+  AFTER UPDATE ON reviews
+  BEGIN
+    UPDATE products
+    SET numReviews = (SELECT COUNT(*) FROM reviews WHERE productId = NEW.productId),
+        rating = COALESCE((SELECT AVG(rating) FROM reviews WHERE productId = NEW.productId), 0),
+        updatedAt = datetime('now')
+    WHERE id = NEW.productId;
+
+    UPDATE products
+    SET numReviews = (SELECT COUNT(*) FROM reviews WHERE productId = OLD.productId),
+        rating = COALESCE((SELECT AVG(rating) FROM reviews WHERE productId = OLD.productId), 0),
+        updatedAt = datetime('now')
+    WHERE id = OLD.productId;
+  END;
+
+  CREATE TRIGGER IF NOT EXISTS trg_reviews_after_delete
+  AFTER DELETE ON reviews
+  BEGIN
+    UPDATE products
+    SET numReviews = (SELECT COUNT(*) FROM reviews WHERE productId = OLD.productId),
+        rating = COALESCE((SELECT AVG(rating) FROM reviews WHERE productId = OLD.productId), 0),
+        updatedAt = datetime('now')
+    WHERE id = OLD.productId;
+  END;
+`);
+
+// ─── One-time/startup data repair ──────────────────────────
+function repairDataConsistency() {
+  const tx = db.transaction(() => {
+    const fixedOrderItemProductIds = db.prepare(`
+      UPDATE order_items
+      SET productId = (
+        SELECT p.id
+        FROM products p
+        WHERE LOWER(TRIM(COALESCE(p.name, ''))) = LOWER(TRIM(COALESCE(order_items.name, '')))
+        LIMIT 1
+      )
+      WHERE productId IS NULL
+        AND COALESCE(TRIM(name), '') <> ''
+    `).run().changes;
+
+    const repairedOrderTotals = db.prepare(`
+      UPDATE orders
+      SET totalPrice = COALESCE((
+          SELECT SUM(COALESCE(oi.price, 0) * COALESCE(oi.quantity, 1))
+          FROM order_items oi
+          WHERE oi.orderId = orders.id
+        ), 0),
+        updatedAt = datetime('now')
+    `).run().changes;
+
+    const repairedProductRatings = db.prepare(`
+      UPDATE products
+      SET numReviews = (
+          SELECT COUNT(*) FROM reviews r WHERE r.productId = products.id
+        ),
+        rating = COALESCE((
+          SELECT AVG(r.rating) FROM reviews r WHERE r.productId = products.id
+        ), 0),
+        updatedAt = datetime('now')
+    `).run().changes;
+
+    return { fixedOrderItemProductIds, repairedOrderTotals, repairedProductRatings };
+  });
+
+  try {
+    const result = tx();
+    console.log('✓ Data consistency repair completed:', result);
+  } catch (error) {
+    console.error('✗ Data consistency repair failed:', error.message);
+  }
+}
+
+repairDataConsistency();
+
 // ─── Helper: add _id alias to match Mongoose-style responses ─
 function addId(row) {
   if (!row) return null;

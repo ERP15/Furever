@@ -39,7 +39,7 @@ const Reviews = () => {
   const fetchReviews = useCallback(async () => {
     try {
       const token = await AsyncStorage.getItem('jwt');
-      const res = await axios.get(`${baseURL}products/admin/reviews/all`, {
+      const res = await axios.get(`${baseURL}products/reviews/all`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setReviews(res.data);
