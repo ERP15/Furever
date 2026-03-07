@@ -18,20 +18,6 @@ cd server
 npm install
 
 
-ENV FILE
-
-JWT_SECRET=5bc4dfff5720daca199e649a1d3e29fc
-API_URL=http://192.168.237.1:4000 // ung ip add mo
-EXPO_ACCESS_TOKEN=zHcvl4gClNEMz_uBKnQD4XXdObUai_-I4qLGuTeD
-
-
-PORT=4000
-
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=jannellayumang@gmail.com
-SMTP_PASS=lsnk fozv byvl abyx
 
 
 # Run this command to get IP address:
